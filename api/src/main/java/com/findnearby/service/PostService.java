@@ -1,13 +1,16 @@
 package com.findnearby.service;
 
 import static com.findnearby.entity.Post.mapToPost;
+import static com.findnearby.service.UserProfileService.haversineDistance;
 
 import com.findnearby.dto.PostRequest;
 import com.findnearby.dto.PostResponse;
 import com.findnearby.entity.Post;
 import com.findnearby.enums.PostStatus;
 import com.findnearby.repository.PostRepository;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -24,10 +27,33 @@ public class PostService {
         return mapToResponse(post);
     }
 
-    public List<PostResponse> getAllPosts(int page, int size) {
-        return postRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size)).stream()
-                .map(this::mapToResponse)
-                .toList();
+    public List<PostResponse> getAllPosts(
+            int page, int size, Double lat, Double lng, Double radiusKm) {
+        var posts = postRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size));
+        var result = posts.stream().map(this::mapToResponse).collect(Collectors.toList());
+
+        if (lat != null && lng != null && radiusKm != null) {
+            result =
+                    result.stream()
+                            .filter(
+                                    p ->
+                                            p.latitude() != null
+                                                    && p.longitude() != null
+                                                    && haversineDistance(
+                                                                    lat,
+                                                                    lng,
+                                                                    p.latitude(),
+                                                                    p.longitude())
+                                                            <= radiusKm)
+                            .sorted(
+                                    Comparator.comparingDouble(
+                                            p ->
+                                                    haversineDistance(
+                                                            lat, lng, p.latitude(), p.longitude())))
+                            .collect(Collectors.toList());
+        }
+
+        return result;
     }
 
     public PostResponse getPost(String id) {
@@ -56,6 +82,8 @@ public class PostService {
                 post.getLocation(),
                 post.getBudgetMin(),
                 post.getBudgetMax(),
+                post.getLatitude(),
+                post.getLongitude(),
                 post.getStatus(),
                 post.getCreatedAt());
     }

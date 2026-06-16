@@ -13,5 +13,7 @@ public record PostResponse(
         String location,
         Double budgetMin,
         Double budgetMax,
+        Double latitude,
+        Double longitude,
         PostStatus status,
         Instant createdAt) {}

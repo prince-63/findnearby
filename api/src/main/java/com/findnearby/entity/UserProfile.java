@@ -29,4 +29,8 @@ public class UserProfile extends BaseDocument {
     private String profileImageKey;
 
     private UserStatus status;
+
+    private Double latitude;
+
+    private Double longitude;
 }

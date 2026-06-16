@@ -9,6 +9,17 @@ import {
 import { store } from '../store/store';
 import Avatar from '../components/Avatar';
 
+const RADIUS_KM = 50;
+
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
 const Skeleton = () => (
   <>
     {[...Array(6)].map((_, i) => (
@@ -25,8 +36,23 @@ const Skeleton = () => (
   </>
 );
 
-const BrokerCard = ({ broker, onContact }) => {
+const BrokerCard = ({ broker, currentUser, onContact }) => {
   const [contacting, setContacting] = useState(false);
+
+  let distance = null;
+  if (
+    currentUser?.latitude != null &&
+    currentUser?.longitude != null &&
+    broker.latitude != null &&
+    broker.longitude != null
+  ) {
+    distance = haversineKm(
+      currentUser.latitude,
+      currentUser.longitude,
+      broker.latitude,
+      broker.longitude
+    );
+  }
 
   const handleContact = async () => {
     if (contacting) return;
@@ -49,6 +75,11 @@ const BrokerCard = ({ broker, onContact }) => {
         <h2 className="text-base font-semibold text-slate-900">{broker.name}</h2>
         <p className="mt-0.5 text-sm text-slate-500">{broker.email}</p>
         <p className="text-sm text-slate-400">{broker.mobileNo}</p>
+        {distance != null && (
+          <p className="mt-1 text-xs text-slate-400">
+            {distance < 1 ? '< 1 km' : `${Math.round(distance)} km`} away
+          </p>
+        )}
       </div>
 
       <div className="mt-3 flex justify-center">
@@ -78,21 +109,46 @@ const BrokerPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchBrokers = async () => {
+    if (!currentUser) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    const init = async () => {
+      setLoading(true);
+      let lat = currentUser?.latitude;
+      let lng = currentUser?.longitude;
+
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              timeout: 5000,
+            })
+          );
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch {
+          // location unavailable, use stored location
+        }
+      }
+
       try {
         const data = await getUsers({
           userType: 'BROKER',
           size: 20,
           page: 0,
+          lat,
+          lng,
+          radius: RADIUS_KM,
         });
         setBrokers(data);
-      } catch (error) {
-        console.error('Failed to load brokers', error);
+      } catch {
+        setBrokers([]);
       } finally {
         setLoading(false);
       }
     };
-    fetchBrokers();
+    init();
   }, []);
 
   const handleContact = async (broker) => {
@@ -110,7 +166,6 @@ const BrokerPage = () => {
   };
 
   if (!currentUser) {
-    navigate('/login', { replace: true });
     return null;
   }
 
@@ -118,9 +173,9 @@ const BrokerPage = () => {
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-4 py-10">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Find Brokers</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Find Nearby Brokers</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Browse local brokers and start a conversation
+            Browse local brokers within {RADIUS_KM} km and start a conversation
           </p>
         </div>
 
@@ -130,7 +185,7 @@ const BrokerPage = () => {
           </div>
         ) : brokers.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 py-20 text-center">
-            <p className="text-sm text-slate-400">No brokers found in your area</p>
+            <p className="text-sm text-slate-400">No brokers found nearby</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

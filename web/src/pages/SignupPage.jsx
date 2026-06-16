@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup, userDetails, uploadProfileImage } from '../api/user-profile';
 import { store } from '../store/store';
@@ -13,6 +13,8 @@ const SignupPage = () => {
     mobileNo: '',
     password: '',
     profileType: 'FINDER',
+    latitude: null,
+    longitude: null,
   });
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -32,12 +34,36 @@ const SignupPage = () => {
     reader.readAsDataURL(file);
   };
 
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setForm((prev) => ({
+            ...prev,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          }));
+        },
+        () => {}
+      );
+    }
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     try {
       setLoading(true);
-      const { userId } = await signup(form);
+      const payload = {
+        name: form.name,
+        email: form.email,
+        mobileNo: form.mobileNo,
+        password: form.password,
+        profileType: form.profileType,
+        latitude: form.latitude,
+        longitude: form.longitude,
+      };
+      const { userId } = await signup(payload);
       if (image) await uploadProfileImage(userId, image);
       const userData = await userDetails(userId);
       loginUser(userData);

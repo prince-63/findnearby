@@ -8,4 +8,6 @@ public record PostRequest(
         @NotBlank String description,
         String location,
         Double budgetMin,
-        Double budgetMax) {}
+        Double budgetMax,
+        Double latitude,
+        Double longitude) {}

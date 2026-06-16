@@ -38,6 +38,12 @@ public class UserProfileController {
         return service.updateUser(userId, request);
     }
 
+    @PatchMapping("/{userId}/location")
+    public UserProfileResponse updateLocation(
+            @PathVariable String userId, @RequestBody @Valid UpdateLocationRequest request) {
+        return service.updateLocation(userId, request);
+    }
+
     @PatchMapping("/{userId}/password")
     public void changePassword(
             @PathVariable String userId, @RequestBody ChangePasswordRequest request) {
@@ -76,7 +82,10 @@ public class UserProfileController {
     public List<UserProfileResponse> getUsers(
             @RequestParam(required = false) String userType,
             @RequestParam(required = false, defaultValue = "10") Long size,
-            @RequestParam(required = false, defaultValue = "0") Long page) {
-        return service.getUsers(userType, size, page);
+            @RequestParam(required = false, defaultValue = "0") Long page,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lng,
+            @RequestParam(required = false) Double radius) {
+        return service.getUsers(userType, size, page, lat, lng, radius);
     }
 }

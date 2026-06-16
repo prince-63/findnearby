@@ -26,8 +26,11 @@ public class Post extends BaseDocument {
     private String location;
 
     private Double budgetMin;
-
     private Double budgetMax;
+
+    private Double latitude;
+
+    private Double longitude;
 
     @Builder.Default private PostStatus status = PostStatus.OPEN;
 
@@ -39,6 +42,8 @@ public class Post extends BaseDocument {
                 .location(request.location())
                 .budgetMin(request.budgetMin())
                 .budgetMax(request.budgetMax())
+                .latitude(request.latitude())
+                .longitude(request.longitude())
                 .status(PostStatus.OPEN)
                 .build();
     }

@@ -74,15 +74,21 @@ export const getProfileImageUrl = (userId) => {
   return `${api.defaults.baseURL}/api/v1/users/${userId}/profile-image`;
 };
 
-export const getUsers = async ({ userType, size = 10, page = 0 }) => {
-  const response = await api.get(ApiConfig.ENDPOINTS.GET_USERS, {
-    params: {
-      userType,
-      size,
-      page,
-    },
-  });
+export const getUsers = async ({ userType, size = 10, page = 0, lat, lng, radius }) => {
+  const params = { userType, size, page };
+  if (lat != null) params.lat = lat;
+  if (lng != null) params.lng = lng;
+  if (radius != null) params.radius = radius;
+  const response = await api.get(ApiConfig.ENDPOINTS.GET_USERS, { params });
 
+  return response.data;
+};
+
+export const updateLocation = async (userId, { latitude, longitude }) => {
+  const response = await api.patch(`${ApiConfig.ENDPOINTS.GET_USER}/${userId}/location`, {
+    latitude,
+    longitude,
+  });
   return response.data;
 };
 
@@ -124,9 +130,11 @@ export const createPost = async (payload) => {
   return response.data;
 };
 
-export const getPosts = async (page = 0, size = 20) => {
-  const response = await api.get(ApiConfig.ENDPOINTS.POSTS, {
-    params: { page, size },
-  });
+export const getPosts = async (page = 0, size = 20, lat, lng, radius) => {
+  const params = { page, size };
+  if (lat != null) params.lat = lat;
+  if (lng != null) params.lng = lng;
+  if (radius != null) params.radius = radius;
+  const response = await api.get(ApiConfig.ENDPOINTS.POSTS, { params });
   return response.data;
 };

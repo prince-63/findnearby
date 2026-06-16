@@ -10,12 +10,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -53,6 +56,8 @@ public class UserProfileService {
                         .mobileNo(request.mobileNo())
                         .password(request.password().toLowerCase())
                         .profileType(request.profileType())
+                        .latitude(request.latitude())
+                        .longitude(request.longitude())
                         .status(UserStatus.ACTIVE)
                         .build();
 
@@ -90,7 +95,9 @@ public class UserProfileService {
                 user.getMobileNo(),
                 user.getProfileType(),
                 user.getProfileImageKey(),
-                user.getStatus());
+                user.getStatus(),
+                user.getLatitude(),
+                user.getLongitude());
     }
 
     public UserProfileResponse updateUser(String userId, UpdateProfileRequest request) {
@@ -202,7 +209,23 @@ public class UserProfileService {
         return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG).body(resource);
     }
 
-    public List<UserProfileResponse> getUsers(String userType, Long size, Long page) {
+    public UserProfileResponse updateLocation(String userId, UpdateLocationRequest request) {
+        for (int i = 0; i < 3; i++) {
+            try {
+                UserProfile user = findUser(userId);
+                user.setLatitude(request.latitude());
+                user.setLongitude(request.longitude());
+                repository.save(user);
+                return map(user);
+            } catch (OptimisticLockingFailureException e) {
+                if (i == 2) throw e;
+            }
+        }
+        throw new RuntimeException("Failed to update location");
+    }
+
+    public List<UserProfileResponse> getUsers(
+            String userType, Long size, Long page, Double lat, Double lng, Double radiusKm) {
         Pageable pageable = PageRequest.of(page.intValue(), size.intValue());
 
         Page<UserProfile> users;
@@ -213,6 +236,42 @@ public class UserProfileService {
             users = repository.findByProfileType(profileType, pageable);
         }
 
-        return users.getContent().stream().map(this::map).toList();
+        var list = users.getContent().stream().map(this::map).collect(Collectors.toList());
+
+        if (lat != null && lng != null && radiusKm != null) {
+            list =
+                    list.stream()
+                            .filter(
+                                    u ->
+                                            u.latitude() != null
+                                                    && u.longitude() != null
+                                                    && haversineDistance(
+                                                                    lat,
+                                                                    lng,
+                                                                    u.latitude(),
+                                                                    u.longitude())
+                                                            <= radiusKm)
+                            .sorted(
+                                    Comparator.comparingDouble(
+                                            u ->
+                                                    haversineDistance(
+                                                            lat, lng, u.latitude(), u.longitude())))
+                            .collect(Collectors.toList());
+        }
+
+        return list;
+    }
+
+    public static double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                        + Math.cos(Math.toRadians(lat1))
+                                * Math.cos(Math.toRadians(lat2))
+                                * Math.sin(dLon / 2)
+                                * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return 6371.0 * c;
     }
 }

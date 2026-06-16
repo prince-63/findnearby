@@ -10,4 +10,6 @@ public record UserProfileResponse(
         String mobileNo,
         ProfileType profileType,
         String profileImageKey,
-        UserStatus status) {}
+        UserStatus status,
+        Double latitude,
+        Double longitude) {}

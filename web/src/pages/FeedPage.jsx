@@ -5,11 +5,23 @@ import { store } from '../store/store';
 import {
   getPosts,
   createPost,
+  updateLocation,
   createConversation,
   getConversation,
   getProfileImageUrl,
 } from '../api/user-profile';
 import Avatar from '../components/Avatar';
+
+const RADIUS_KM = 50;
+
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 const PinIcon = () => (
   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -34,22 +46,33 @@ const RupeeIcon = () => (
 );
 
 const timeAgo = (dateStr) => {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = Math.floor((now - then) / 1000);
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
   if (diff < 60) return 'just now';
   const mins = Math.floor(diff / 60);
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return days < 30 ? `${days}d ago` : new Date(dateStr).toLocaleDateString();
 };
 
 const PostCard = ({ post, currentUser, onContact, onClose }) => {
   const isOwnPost = currentUser?.id === post.finderId;
   const isOpen = post.status === 'OPEN';
+  let distance = null;
+  if (
+    currentUser?.latitude != null &&
+    currentUser?.longitude != null &&
+    post.latitude != null &&
+    post.longitude != null
+  ) {
+    distance = haversineKm(
+      currentUser.latitude,
+      currentUser.longitude,
+      post.latitude,
+      post.longitude
+    );
+  }
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -78,6 +101,11 @@ const PostCard = ({ post, currentUser, onContact, onClose }) => {
         {post.budgetMin != null && post.budgetMax != null && (
           <span className="inline-flex items-center gap-1">
             <RupeeIcon />₹{post.budgetMin.toLocaleString()} – ₹{post.budgetMax.toLocaleString()}
+          </span>
+        )}
+        {distance != null && (
+          <span className="inline-flex items-center gap-1 text-slate-400">
+            {distance < 1 ? '< 1 km' : `${Math.round(distance)} km`}
           </span>
         )}
       </div>
@@ -143,16 +171,44 @@ const FeedPage = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const fetchPosts = async () => {
+    if (!currentUser) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    const init = async () => {
       dispatch({ type: 'LOADING' });
+      let lat = currentUser?.latitude;
+      let lng = currentUser?.longitude;
+
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              timeout: 5000,
+            })
+          );
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+          if (currentUser && (currentUser.latitude !== lat || currentUser.longitude !== lng)) {
+            const updated = await updateLocation(currentUser.id, {
+              latitude: lat,
+              longitude: lng,
+            });
+            store.getState().login(updated);
+          }
+        } catch {
+          // location unavailable, use stored location
+        }
+      }
+
       try {
-        const data = await getPosts();
+        const data = await getPosts(0, 20, lat, lng, RADIUS_KM);
         dispatch({ type: 'LOADED', posts: data });
       } catch {
         dispatch({ type: 'LOADED', posts: [] });
       }
     };
-    fetchPosts();
+    init();
   }, []);
 
   const handleContact = async (post) => {
@@ -172,7 +228,7 @@ const FeedPage = () => {
   const reloadPosts = async () => {
     dispatch({ type: 'LOADING' });
     try {
-      const data = await getPosts();
+      const data = await getPosts(0, 20, currentUser?.latitude, currentUser?.longitude, RADIUS_KM);
       dispatch({ type: 'LOADED', posts: data });
     } catch {
       dispatch({ type: 'LOADED', posts: [] });
@@ -192,6 +248,8 @@ const FeedPage = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      let lat = currentUser.latitude;
+      let lng = currentUser.longitude;
       await createPost({
         finderId: currentUser.id,
         title: form.title,
@@ -199,6 +257,8 @@ const FeedPage = () => {
         location: form.location || null,
         budgetMin: form.budgetMin ? Number(form.budgetMin) : null,
         budgetMax: form.budgetMax ? Number(form.budgetMax) : null,
+        latitude: lat,
+        longitude: lng,
       });
       setForm({ title: '', description: '', location: '', budgetMin: '', budgetMax: '' });
       setShowForm(false);
@@ -211,7 +271,6 @@ const FeedPage = () => {
   };
 
   if (!currentUser) {
-    navigate('/login', { replace: true });
     return null;
   }
 
@@ -306,7 +365,7 @@ const FeedPage = () => {
       )}
 
       <h2 className="mb-4 text-lg font-bold text-slate-900">
-        {isFinder ? 'Your Posts' : 'Browse Requests'}
+        {isFinder ? 'Nearby Requests' : 'Browse Requests'}
       </h2>
 
       {loading ? (
@@ -331,7 +390,7 @@ const FeedPage = () => {
       ) : posts.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">
           <p className="text-sm text-slate-400">
-            {isFinder ? "You haven't created any posts yet." : 'No requests yet. Check back later!'}
+            {isFinder ? "You haven't created any posts yet." : 'No nearby requests found.'}
           </p>
         </div>
       ) : (

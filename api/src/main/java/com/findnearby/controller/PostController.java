@@ -30,8 +30,11 @@ public class PostController {
     @GetMapping
     public ResponseEntity<List<PostResponse>> getAllPosts(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(postService.getAllPosts(page, size));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lng,
+            @RequestParam(required = false) Double radius) {
+        return ResponseEntity.ok(postService.getAllPosts(page, size, lat, lng, radius));
     }
 
     @GetMapping("/{id}")

@@ -10,4 +10,6 @@ public record SignupRequest(
         @Email @NotBlank String email,
         @NotBlank String mobileNo,
         @NotBlank String password,
-        @NotNull ProfileType profileType) {}
+        @NotNull ProfileType profileType,
+        Double latitude,
+        Double longitude) {}
