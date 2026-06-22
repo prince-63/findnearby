@@ -1,0 +1,3 @@
+FindNearby is a location-based property locator and communication platform designed to connect property seekers with local brokers. The platform simplifies the process of finding rental accommodations by enabling direct interaction between users and brokers through real-time messaging. Users can create accounts, manage profiles, discover brokers, and communicate instantly using a WebSocket-based chat system. The application is built using a modern full-stack architecture and serves as a foundation for future property listing and recommendation features.
+
+**Tech Stack:** Java 19, Spring Boot, Spring Data MongoDB, Spring WebSocket, STOMP, MongoDB, React.js, Vite, Tailwind CSS, Axios, Zustand, Git, GitHub, Postman
